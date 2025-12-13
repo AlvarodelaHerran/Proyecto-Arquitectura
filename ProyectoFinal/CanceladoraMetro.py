@@ -1,6 +1,7 @@
 """
 Aplicación Flask para Canceladora de Metro con RFID Parallax y LCD
 Raspberry Pi 5
+Con integración de InfluxDB para almacenamiento de datos en tiempo real
 """
 
 from flask import Flask, render_template, jsonify, request
@@ -11,9 +12,31 @@ import RPi.GPIO as GPIO
 import threading
 import json
 from datetime import datetime
+from influxdb_handler import InfluxDBHandler
 
 # --- CONFIGURACIÓN ---
 app = Flask(__name__)
+
+# Configuración de InfluxDB
+INFLUXDB_CONFIG = {
+    "url": "http://localhost:8086",        # URL del servidor InfluxDB
+    "token": "your_admin_token_here",      # Token de autenticación (obtener de InfluxDB)
+    "org": "metro_org",                     # Organización
+    "bucket": "metro_system"                # Bucket para datos
+}
+
+# Inicializar cliente InfluxDB
+try:
+    db_handler = InfluxDBHandler(
+        url=INFLUXDB_CONFIG["url"],
+        token=INFLUXDB_CONFIG["token"],
+        org=INFLUXDB_CONFIG["org"],
+        bucket=INFLUXDB_CONFIG["bucket"]
+    )
+    print("✓ InfluxDB inicializado correctamente")
+except Exception as e:
+    print(f"✗ Error inicializando InfluxDB: {e}")
+    db_handler = None
 
 # Pin para habilitar el lector RFID Parallax (activo bajo)
 ENABLE_PIN = 17  # GPIO17 - Cambia según tu conexión
@@ -105,6 +128,15 @@ def procesar_tarjeta(id_tarjeta):
             "total_accesos": estado_sistema["total_accesos"] + 1
         })
         
+        # Registrar en InfluxDB
+        if db_handler:
+            db_handler.write_access_event(
+                card_id=id_tarjeta,
+                user_name=nombre,
+                access_granted=True,
+                door_id="canceladora_1"
+            )
+        
         mostrar_lcd("ACCESO PERMITIDO", nombre)
         print(f"✓ Acceso autorizado: {nombre} (ID: {id_tarjeta})")
         
@@ -117,6 +149,15 @@ def procesar_tarjeta(id_tarjeta):
             "timestamp": timestamp,
             "total_rechazos": estado_sistema["total_rechazos"] + 1
         })
+        
+        # Registrar en InfluxDB
+        if db_handler:
+            db_handler.write_access_event(
+                card_id=id_tarjeta,
+                user_name="Desconocido",
+                access_granted=False,
+                door_id="canceladora_1"
+            )
         
         mostrar_lcd("ACCESO DENEGADO", f"ID: {id_tarjeta}")
         print(f"✗ Acceso denegado: ID {id_tarjeta}")
@@ -206,6 +247,44 @@ def reiniciar_estadisticas():
     estado_sistema["total_accesos"] = 0
     estado_sistema["total_rechazos"] = 0
     return jsonify({"mensaje": "Estadísticas reiniciadas", "exito": True})
+
+@app.route('/api/accesos_recientes')
+def obtener_accesos_recientes():
+    """API: Obtiene los accesos recientes desde InfluxDB"""
+    if not db_handler:
+        return jsonify({"error": "Base de datos no disponible"}), 500
+    
+    minutos = request.args.get('minutos', 60, type=int)
+    accesos = db_handler.get_recent_access(minutes=minutos)
+    
+    return jsonify({
+        "total": len(accesos),
+        "accesos": [
+            {
+                "timestamp": str(acc['time']),
+                "usuario": acc['user'],
+                "puerta": acc['door'],
+                "autorizado": acc['access_granted'],
+                "tarjeta_id": acc['card_id']
+            } for acc in accesos
+        ]
+    })
+
+@app.route('/api/estadisticas')
+def obtener_estadisticas():
+    """API: Obtiene estadísticas desde InfluxDB"""
+    if not db_handler:
+        return jsonify({"error": "Base de datos no disponible"}), 500
+    
+    horas = request.args.get('horas', 24, type=int)
+    stats = db_handler.get_access_statistics(hours=horas)
+    
+    return jsonify({
+        "total_accesos": stats.get('total', 0),
+        "accesos_permitidos": stats.get('granted', 0),
+        "accesos_denegados": stats.get('denied', 0),
+        "porcentaje_autorizacion": round(stats.get('grant_percentage', 0), 2)
+    })
 
 # --- INICIO DE LA APLICACIÓN ---
 if __name__ == '__main__':

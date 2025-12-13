@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metro Access Control - Dashboard</title>
+    <!-- Chart.js para gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            color: #2c3e50;
+            line-height: 1.6;
+        }
+
+        .topbar {
+            background: linear-gradient(135deg, #2c5f8d 0%, #1e4d73 100%);
+            color: white;
+            padding: 25px 40px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .topbar h1 {
+            font-size: 28px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+            margin-bottom: 5px;
+        }
+
+        .topbar p {
+            font-size: 13px;
+            opacity: 0.9;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 40px auto;
+            padding: 0 30px;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        .box {
+            background: white;
+            border-radius: 14px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .box:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 32px rgba(0,0,0,0.15);
+        }
+
+        .box-title {
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            padding: 20px 25px;
+            font-weight: 700;
+            color: #1e4d73;
+            border-bottom: 3px solid #2c5f8d;
+            font-size: 16px;
+            letter-spacing: 0.3px;
+        }
+
+        .box-content {
+            padding: 30px;
+        }
+
+        /* DISPLAY CARD */
+        .display-card {
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: all 0.5s ease;
+        }
+
+        .status-text {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            letter-spacing: 0.5px;
+        }
+
+        .card-id {
+            font-size: 42px;
+            font-weight: 800;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 4px;
+            opacity: 0.9;
+        }
+
+        .user-name {
+            font-size: 20px;
+            margin: 10px 0;
+            opacity: 0.95;
+            font-weight: 500;
+        }
+
+        .time-stamp {
+            font-size: 14px;
+            opacity: 0.8;
+            margin-top: 15px;
+        }
+
+        .access-ok {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+
+        .access-denied {
+            background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+            color: white;
+        }
+
+        .access-waiting {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            animation: pulse-slow 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-slow {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        /* MÉTRICAS */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+
+        .metric-card {
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            padding: 25px;
+            border-radius: 10px;
+            text-align: center;
+            border: 2px solid #e5e9f0;
+            transition: all 0.3s ease;
+        }
+
+        .metric-card:hover {
+            border-color: #2c5f8d;
+            transform: translateY(-3px);
+        }
+
+        .metric-number {
+            font-size: 48px;
+            font-weight: 800;
+            color: #2c5f8d;
+            margin-bottom: 8px;
+        }
+
+        .metric-text {
+            font-size: 13px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 700;
+        }
+
+        .metric-subtext {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 8px;
+        }
+
+        /* FORMULARIOS */
+        .form-field {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #475569;
+            font-size: 14px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e5e9f0;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: all 0.2s;
+            background: #f8fafc;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #2c5f8d;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(44, 95, 141, 0.1);
+        }
+
+        /* BOTONES */
+        .btn {
+            width: 100%;
+            padding: 14px 24px;
+            background: linear-gradient(135deg, #2c5f8d 0%, #1e4d73 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(44, 95, 141, 0.25);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(44, 95, 141, 0.35);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-outline {
+            background: white;
+            color: #2c5f8d;
+            border: 2px solid #2c5f8d;
+            box-shadow: none;
+        }
+
+        .btn-outline:hover {
+            background: #f0f4f8;
+        }
+
+        .btn-small {
+            width: auto;
+            padding: 8px 14px;
+            font-size: 12px;
+            background: #ef4444;
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
+        }
+
+        .btn-small:hover {
+            background: #dc2626;
+        }
+
+        /* TABLAS */
+        .data-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        .data-table th {
+            background: #f8fafc;
+            padding: 16px;
+            text-align: left;
+            font-weight: 700;
+            color: #475569;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #e5e9f0;
+        }
+
+        .data-table td {
+            padding: 16px;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 14px;
+        }
+
+        .data-table tr:hover {
+            background: #f8fafc;
+        }
+
+        .data-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 6px 14px;
+            background: #d1fae5;
+            color: #065f46;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .tag.denied {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        /* GRÁFICOS */
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-top: 20px;
+        }
+
+        .no-data {
+            text-align: center;
+            color: #94a3b8;
+            padding: 40px;
+            font-size: 14px;
+        }
+
+        @media (max-width: 1000px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <h1>🚇 Sistema de Control de Acceso - Metro Parallax RFID</h1>
+        <p>Dashboard en tiempo real con InfluxDB</p>
+    </div>
+
+    <div class="container">
+        <div class="layout">
+            <!-- PANEL IZQUIERDO -->
+            <div>
+                <!-- Monitor de Acceso -->
+                <div class="box">
+                    <div class="box-title">📊 Monitor de Acceso</div>
+                    <div class="box-content">
+                        <div id="display-card" class="display-card access-waiting">
+                            <div id="estado-acceso" class="status-text">Sistema en espera</div>
+                            <div id="tarjeta-id" class="card-id">- - - -</div>
+                            <div id="nombre-usuario" class="user-name">Acerque su tarjeta</div>
+                            <div id="timestamp" class="time-stamp">--:--:--</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Últimos accesos -->
+                <div class="box" style="margin-top: 30px;">
+                    <div class="box-title">⏱️ Últimos Accesos (Últimas 24h)</div>
+                    <div class="box-content">
+                        <table class="data-table" id="tabla-accesos">
+                            <thead>
+                                <tr>
+                                    <th>Hora</th>
+                                    <th>Usuario</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="accesos-tbody">
+                                <tr><td colspan="3" class="no-data">Cargando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PANEL DERECHO -->
+            <div>
+                <!-- Estadísticas -->
+                <div class="box">
+                    <div class="box-title">📈 Estadísticas (Últimas 24h)</div>
+                    <div class="box-content">
+                        <div class="metrics-grid">
+                            <div class="metric-card">
+                                <div id="stat-total" class="metric-number">0</div>
+                                <div class="metric-text">Total de Accesos</div>
+                            </div>
+                            <div class="metric-card">
+                                <div id="stat-permitidos" class="metric-number">0</div>
+                                <div class="metric-text">Permitidos</div>
+                            </div>
+                            <div class="metric-card">
+                                <div id="stat-denegados" class="metric-number">0</div>
+                                <div class="metric-text">Denegados</div>
+                            </div>
+                            <div class="metric-card">
+                                <div id="stat-porcentaje" class="metric-number">0%</div>
+                                <div class="metric-text">Tasa Autorización</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Gráfico -->
+                <div class="box" style="margin-top: 30px;">
+                    <div class="box-title">📊 Distribución de Accesos</div>
+                    <div class="box-content">
+                        <div class="chart-container">
+                            <canvas id="chartAccesos"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECCIÓN COMPLETA: Tarjetas -->
+        <div class="box full-width">
+            <div class="box-title">🎫 Gestión de Tarjetas Autorizadas</div>
+            <div class="box-content">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+                    <!-- Tabla de tarjetas -->
+                    <div>
+                        <h3 style="margin-bottom: 20px; color: #1e4d73; font-size: 16px;">Tarjetas Registradas</h3>
+                        <table class="data-table" id="tabla-tarjetas">
+                            <thead>
+                                <tr>
+                                    <th>ID Tarjeta</th>
+                                    <th>Nombre</th>
+                                    <th>Estado</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="tarjetas-tbody">
+                                <tr><td colspan="4" class="no-data">Cargando tarjetas...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Formulario -->
+                    <div>
+                        <h3 style="margin-bottom: 20px; color: #1e4d73; font-size: 16px;">Registrar Nueva Tarjeta</h3>
+                        <form onsubmit="agregarTarjeta(event)">
+                            <div class="form-field">
+                                <label class="form-label" for="nueva-id">ID de la tarjeta (número)</label>
+                                <input type="number" id="nueva-id" class="form-input" placeholder="Ej: 123456789" required>
+                            </div>
+                            <div class="form-field">
+                                <label class="form-label" for="nuevo-nombre">Nombre del usuario</label>
+                                <input type="text" id="nuevo-nombre" class="form-input" placeholder="Ej: Juan Pérez" required>
+                            </div>
+                            <button type="submit" class="btn">✓ Guardar Tarjeta</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let chartAccesos = null;
+
+        // Actualizar estado en tiempo real
+        function actualizarEstado() {
+            fetch('/estado')
+                .then(res => res.json())
+                .then(data => {
+                    const displayCard = document.getElementById('display-card');
+                    const estadoDiv = document.getElementById('estado-acceso');
+                    const tarjetaDiv = document.getElementById('tarjeta-id');
+                    const nombreDiv = document.getElementById('nombre-usuario');
+                    const timestampDiv = document.getElementById('timestamp');
+
+                    if (data.acceso === 'AUTORIZADO') {
+                        displayCard.className = 'display-card access-ok';
+                        estadoDiv.textContent = '✓ Acceso Autorizado';
+                    } else if (data.acceso === 'DENEGADO') {
+                        displayCard.className = 'display-card access-denied';
+                        estadoDiv.textContent = '✗ Acceso Denegado';
+                    } else {
+                        displayCard.className = 'display-card access-waiting';
+                        estadoDiv.textContent = 'Sistema en espera';
+                    }
+
+                    tarjetaDiv.textContent = data.ultima_tarjeta || '- - - -';
+                    nombreDiv.textContent = data.nombre_usuario || 'Acerque su tarjeta';
+                    timestampDiv.textContent = data.timestamp || '--:--:--';
+                });
+        }
+
+        // Cargar accesos recientes desde InfluxDB
+        function cargarAccesosRecientes() {
+            fetch('/api/accesos_recientes?minutos=1440')
+                .then(res => res.json())
+                .then(data => {
+                    const tbody = document.getElementById('accesos-tbody');
+                    tbody.innerHTML = '';
+
+                    if (data.accesos && data.accesos.length > 0) {
+                        data.accesos.slice(0, 15).forEach(acceso => {
+                            const tr = document.createElement('tr');
+                            const hora = new Date(acceso.timestamp).toLocaleTimeString('es-ES');
+                            const tag = acceso.autorizado ? 
+                                '<span class="tag">PERMITIDO</span>' : 
+                                '<span class="tag denied">DENEGADO</span>';
+                            
+                            tr.innerHTML = `
+                                <td><strong>${hora}</strong></td>
+                                <td>${acceso.usuario || 'Desconocido'}</td>
+                                <td>${tag}</td>
+                            `;
+                            tbody.appendChild(tr);
+                        });
+                    } else {
+                        tbody.innerHTML = '<tr><td colspan="3" class="no-data">Sin datos disponibles</td></tr>';
+                    }
+                })
+                .catch(err => {
+                    console.error('Error cargando accesos:', err);
+                    document.getElementById('accesos-tbody').innerHTML = 
+                        '<tr><td colspan="3" class="no-data">Error al cargar datos</td></tr>';
+                });
+        }
+
+        // Cargar estadísticas desde InfluxDB
+        function cargarEstadisticas() {
+            fetch('/api/estadisticas?horas=24')
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('stat-total').textContent = data.total_accesos;
+                    document.getElementById('stat-permitidos').textContent = data.accesos_permitidos;
+                    document.getElementById('stat-denegados').textContent = data.accesos_denegados;
+                    document.getElementById('stat-porcentaje').textContent = 
+                        Math.round(data.porcentaje_autorizacion) + '%';
+
+                    // Actualizar gráfico
+                    actualizarGrafico(data.accesos_permitidos, data.accesos_denegados);
+                })
+                .catch(err => {
+                    console.error('Error cargando estadísticas:', err);
+                });
+        }
+
+        // Actualizar gráfico
+        function actualizarGrafico(permitidos, denegados) {
+            const ctx = document.getElementById('chartAccesos').getContext('2d');
+            
+            if (chartAccesos) {
+                chartAccesos.destroy();
+            }
+
+            chartAccesos = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Accesos Permitidos', 'Accesos Denegados'],
+                    datasets: [{
+                        data: [permitidos, denegados],
+                        backgroundColor: ['#38ef7d', '#f45c43'],
+                        borderColor: ['#11998e', '#eb3349'],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                font: { size: 13, weight: 'bold' },
+                                padding: 20,
+                                usePointStyle: true
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Cargar tarjetas
+        function cargarTarjetas() {
+            fetch('/tarjetas')
+                .then(res => res.json())
+                .then(tarjetas => {
+                    const tbody = document.getElementById('tarjetas-tbody');
+                    tbody.innerHTML = '';
+                    
+                    if (tarjetas.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="4" class="no-data">No hay tarjetas registradas</td></tr>';
+                        return;
+                    }
+
+                    tarjetas.forEach(tarjeta => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td><strong>${tarjeta.id}</strong></td>
+                            <td>${tarjeta.nombre}</td>
+                            <td><span class="tag">ACTIVA</span></td>
+                            <td><button class="btn btn-small" onclick="eliminarTarjeta(${tarjeta.id})">Eliminar</button></td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                });
+        }
+
+        // Agregar tarjeta
+        function agregarTarjeta(event) {
+            event.preventDefault();
+            
+            const id = document.getElementById('nueva-id').value;
+            const nombre = document.getElementById('nuevo-nombre').value;
+
+            fetch('/agregar_tarjeta', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({id: parseInt(id), nombre: nombre})
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.exito) {
+                    alert('✓ Tarjeta registrada correctamente');
+                    document.getElementById('nueva-id').value = '';
+                    document.getElementById('nuevo-nombre').value = '';
+                    cargarTarjetas();
+                } else {
+                    alert('✗ Error al registrar la tarjeta');
+                }
+            })
+            .catch(err => alert('Error: ' + err));
+        }
+
+        // Eliminar tarjeta
+        function eliminarTarjeta(id) {
+            if (confirm('¿Desea eliminar esta tarjeta?')) {
+                fetch(`/eliminar_tarjeta/${id}`, {method: 'DELETE'})
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.exito) {
+                            alert('✓ Tarjeta eliminada');
+                            cargarTarjetas();
+                        }
+                    });
+            }
+        }
+
+        // Inicializar
+        function inicializar() {
+            actualizarEstado();
+            cargarTarjetas();
+            cargarAccesosRecientes();
+            cargarEstadisticas();
+
+            // Actualizar cada segundo
+            setInterval(actualizarEstado, 1000);
+            
+            // Actualizar accesos y estadísticas cada 5 segundos
+            setInterval(cargarAccesosRecientes, 5000);
+            setInterval(cargarEstadisticas, 5000);
+        }
+
+        document.addEventListener('DOMContentLoaded', inicializar);
+    </script>
+</body>
+</html>

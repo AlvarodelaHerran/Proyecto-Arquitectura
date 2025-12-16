@@ -12,10 +12,10 @@ from time import sleep
 
 # --- CONFIGURACIÓN ---
 # Pines GPIO (Broadcom numbering)
-PIN_LED_ROJO = 17
-PIN_LED_VERDE = 27
-PIN_SERVO_1 = 12
-PIN_SERVO_2 = 13
+PIN_LED_ROJO = 13
+PIN_LED_VERDE = 19
+PIN_SERVO_1 = 17
+PIN_SERVO_2 = 27
 
 print("Iniciando prueba de componentes básicos...")
 

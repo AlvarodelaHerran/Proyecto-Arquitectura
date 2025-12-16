@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metro - Iniciar Sesión</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-wrapper {
+            max-width: 450px;
+            width: 100%;
+        }
+
+        .login-header-banner {
+            background: linear-gradient(135deg, #2c5f8d 0%, #1e4d73 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px 12px 0 0;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .login-header-banner h1 {
+            font-size: 28px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .login-header-banner p {
+            opacity: 0.9;
+            font-size: 15px;
+        }
+
+        .login-container {
+            background: white;
+            border-radius: 0 0 12px 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        .login-body {
+            padding: 40px 35px;
+        }
+
+        .form-group {
+            margin-bottom: 22px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #475569;
+            font-size: 14px;
+        }
+
+        input {
+            width: 100%;
+            padding: 13px 16px;
+            border: 2px solid #e5e9f0;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: all 0.2s;
+            background: #f8fafc;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #2c5f8d;
+            background: white;
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 15px;
+            background: #2c5f8d;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 10px;
+        }
+
+        .btn-login:hover {
+            background: #1e4d73;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(44, 95, 141, 0.3);
+        }
+
+        .btn-login:active {
+            transform: translateY(0);
+        }
+
+        .error-message {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 13px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+            border-left: 4px solid #dc2626;
+        }
+
+        .error-message.show {
+            display: block;
+            animation: shake 0.5s;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+
+        .login-footer {
+            background: #f8fafc;
+            padding: 25px 35px;
+            text-align: center;
+            border-top: 1px solid #e5e9f0;
+        }
+
+        .credentials-box {
+            background: #fff7ed;
+            padding: 18px;
+            border-radius: 8px;
+            border-left: 4px solid #f59e0b;
+            text-align: left;
+        }
+
+        .credentials-box h4 {
+            color: #92400e;
+            font-size: 13px;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .credential-item {
+            background: white;
+            padding: 10px 12px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid #fed7aa;
+        }
+
+        .credential-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .credential-label {
+            color: #78350f;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .credential-value {
+            color: #78350f;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+            background: #fef3c7;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 15px;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #e5e9f0;
+            border-top: 3px solid #2c5f8d;
+            border-radius: 50%;
+            width: 35px;
+            height: 35px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .footer-info {
+            margin-top: 20px;
+            font-size: 12px;
+            color: #94a3b8;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-wrapper">
+        <div class="login-header-banner">
+            <h1>Sistema Metro</h1>
+            <p>Control de Acceso con Autenticación</p>
+        </div>
+
+        <div class="login-container">
+            <div class="login-body">
+                <div id="error-message" class="error-message"></div>
+                
+                <form id="login-form" onsubmit="iniciarSesion(event)">
+                    <div class="form-group">
+                        <label for="username">Usuario</label>
+                        <input type="text" id="username" placeholder="Ingresa tu usuario" required autofocus>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password">Contraseña</label>
+                        <input type="password" id="password" placeholder="Ingresa tu contraseña" required>
+                    </div>
+
+                    <button type="submit" class="btn-login">Iniciar Sesión</button>
+                </form>
+
+                <div id="loading" class="loading">
+                    <div class="spinner"></div>
+                    <div class="loading-text">Autenticando...</div>
+                </div>
+            </div>
+
+            <div class="login-footer">
+                <div class="credentials-box">
+                    <h4>🔑 Credenciales de prueba</h4>
+                    <div class="credential-item">
+                        <span class="credential-label">Administrador</span>
+                        <span class="credential-value">admin / admin123</span>
+                    </div>
+                    <div class="credential-item">
+                        <span class="credential-label">Usuario Normal</span>
+                        <span class="credential-value">usuario1 / pass123</span>
+                    </div>
+                </div>
+                
+                <div class="footer-info">
+                    Sistema de Control de Acceso - Raspberry Pi 5
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function mostrarError(mensaje) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = mensaje;
+            errorDiv.classList.add('show');
+            
+            setTimeout(() => {
+                errorDiv.classList.remove('show');
+            }, 5000);
+        }
+
+        function mostrarCargando(mostrar) {
+            const form = document.getElementById('login-form');
+            const loading = document.getElementById('loading');
+            
+            if (mostrar) {
+                form.style.display = 'none';
+                loading.classList.add('show');
+            } else {
+                form.style.display = 'block';
+                loading.classList.remove('show');
+            }
+        }
+
+        async function iniciarSesion(event) {
+            event.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            mostrarCargando(true);
+
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username, password})
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.exito) {
+                    // Login exitoso - redirigir al dashboard
+                    window.location.href = '/';
+                } else {
+                    mostrarCargando(false);
+                    mostrarError(data.error || 'Error al iniciar sesión');
+                }
+            } catch (error) {
+                mostrarCargando(false);
+                mostrarError('Error de conexión con el servidor');
+                console.error('Error:', error);
+            }
+        }
+
+        // Verificar si ya hay sesión activa
+        fetch('/api/session')
+            .then(res => {
+                const contentType = res.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    return res.json();
+                }
+                return { autenticado: false };
+            })
+            .then(data => {
+                if (data.autenticado) {
+                    window.location.href = '/';
+                }
+            })
+            .catch(err => console.log('No hay sesión activa'));
+    </script>
+</body>
+</html>

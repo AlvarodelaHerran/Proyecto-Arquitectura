@@ -12,8 +12,8 @@ from time import sleep
 
 # --- CONFIGURACIÓN ---
 # Pines GPIO (Broadcom numbering)
-PIN_LED_ROJO = 13
-PIN_LED_VERDE = 19
+PIN_LED_ROJO = 24
+PIN_LED_VERDE = 25
 PIN_SERVO_1 = 17
 PIN_SERVO_2 = 27
 

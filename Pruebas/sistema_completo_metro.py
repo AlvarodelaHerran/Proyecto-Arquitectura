@@ -14,8 +14,8 @@ PIN_LASER_B = 23
 
 PIN_BOTON = 5
 
-PIN_LED_ROJO = 13
-PIN_LED_VERDE = 19
+PIN_LED_ROJO = 24
+PIN_LED_VERDE = 25
 
 # -------------------------
 # OBJETOS DE HARDWARE

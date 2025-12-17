@@ -2,6 +2,7 @@
 Aplicación Flask para Canceladora de Metro con Botón simulador
 Raspberry Pi 5
 Con sistema de autenticación de usuarios y almacenamiento en InfluxDB
+Configuración desde archivo .env
 """
 
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for
@@ -10,47 +11,44 @@ from gpiozero import LED, AngularServo, Button
 from RPLCD.i2c import CharLCD
 import threading
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 from influxdb_handler import InfluxDBHandler
 import hashlib
+import logging
 
-# --- CONFIGURACIÓN ---
+# Importar configuración
+from config import config
+
+# -------------------------
+# CONFIGURACIÓN DE LOGGING
+# -------------------------
+logging.basicConfig(
+    level=getattr(logging, config.LOG_LEVEL),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# -------------------------
+# CONFIGURACIÓN DE FLASK
+# -------------------------
 app = Flask(__name__)
-app.secret_key = 'tu_clave_secreta_muy_segura_cambiar_en_produccion'  # CAMBIAR EN PRODUCCIÓN
-
-# Configuración de InfluxDB
-INFLUXDB_CONFIG = {
-    "url": "http://localhost:8086",
-    "token": "your_admin_token_here",
-    "org": "metro_org",
-    "bucket": "metro_system"
-}
-
-# Inicializar cliente InfluxDB
-try:
-    db_handler = InfluxDBHandler(
-        url=INFLUXDB_CONFIG["url"],
-        token=INFLUXDB_CONFIG["token"],
-        org=INFLUXDB_CONFIG["org"],
-        bucket=INFLUXDB_CONFIG["bucket"]
-    )
-    print("✓ InfluxDB inicializado correctamente")
-except Exception as e:
-    print(f"✗ Error inicializando InfluxDB: {e}")
-    db_handler = None
+app.secret_key = config.FLASK_SECRET_KEY
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=config.SESSION_TIMEOUT)
 
 # -------------------------
-# CONFIGURACIÓN DE PINES
+# INICIALIZAR INFLUXDB
 # -------------------------
-
-PIN_SERVO_1 = 17
-PIN_SERVO_2 = 27
-PIN_LASER_A = 22
-PIN_LASER_B = 23
-PIN_BOTON = 5
-PIN_LED_ROJO = 13
-PIN_LED_VERDE = 19
+db_handler = None
+if config.ENABLE_INFLUXDB:
+    try:
+        db_handler = InfluxDBHandler(**config.get_influxdb_config())
+        logger.info("✓ InfluxDB inicializado correctamente")
+    except Exception as e:
+        logger.error(f"✗ Error inicializando InfluxDB: {e}")
+        logger.warning("⚠ El sistema continuará sin InfluxDB")
+else:
+    logger.info("ℹ InfluxDB deshabilitado en configuración")
 
 # -------------------------
 # BASE DE DATOS DE USUARIOS
@@ -60,24 +58,27 @@ def hash_password(password):
     """Hashea una contraseña usando SHA256"""
     return hashlib.sha256(password.encode()).hexdigest()
 
-# Base de datos de usuarios {username: {password_hash, name, role}}
+# Cargar usuarios desde configuración
 USUARIOS = {
-    "admin": {
-        "password": hash_password("admin123"),  # Contraseña: admin123
-        "nombre": "Administrador",
+    config.DEFAULT_ADMIN_USER: {
+        "password": hash_password(config.DEFAULT_ADMIN_PASS),
+        "nombre": config.DEFAULT_ADMIN_NAME,
         "rol": "admin"
     },
-    "usuario1": {
-        "password": hash_password("pass123"),  # Contraseña: pass123
-        "nombre": "Juan Pérez",
+    config.DEFAULT_USER1_USER: {
+        "password": hash_password(config.DEFAULT_USER1_PASS),
+        "nombre": config.DEFAULT_USER1_NAME,
         "rol": "usuario"
     },
-    "usuario2": {
-        "password": hash_password("pass123"),
-        "nombre": "María García",
+    config.DEFAULT_USER2_USER: {
+        "password": hash_password(config.DEFAULT_USER2_PASS),
+        "nombre": config.DEFAULT_USER2_NAME,
         "rol": "usuario"
     }
 }
+
+# Contador de intentos fallidos de login (para seguridad)
+login_attempts = {}
 
 # Estado global del sistema
 estado_sistema = {
@@ -96,34 +97,43 @@ estado_sistema = {
 # INICIALIZAR HARDWARE
 # -------------------------
 
-led_rojo = LED(PIN_LED_ROJO)
-led_verde = LED(PIN_LED_VERDE)
-boton = Button(PIN_BOTON, pull_up=True)
-laserA = Button(PIN_LASER_A, pull_up=True)
-laserB = Button(PIN_LASER_B, pull_up=True)
+try:
+    led_rojo = LED(config.PIN_LED_ROJO)
+    led_verde = LED(config.PIN_LED_VERDE)
+    boton = Button(config.PIN_BOTON, pull_up=True)
+    laserA = Button(config.PIN_LASER_A, pull_up=True)
+    laserB = Button(config.PIN_LASER_B, pull_up=True)
 
-s1 = AngularServo(PIN_SERVO_1, min_angle=0, max_angle=180,
-                  min_pulse_width=0.0005, max_pulse_width=0.0024)
-s2 = AngularServo(PIN_SERVO_2, min_angle=0, max_angle=180,
-                  min_pulse_width=0.0005, max_pulse_width=0.0024)
+    s1 = AngularServo(config.PIN_SERVO_1, min_angle=0, max_angle=180,
+                      min_pulse_width=0.0005, max_pulse_width=0.0024)
+    s2 = AngularServo(config.PIN_SERVO_2, min_angle=0, max_angle=180,
+                      min_pulse_width=0.0005, max_pulse_width=0.0024)
+    
+    logger.info("✓ Hardware GPIO inicializado correctamente")
+except Exception as e:
+    logger.error(f"✗ Error inicializando GPIO: {e}")
+    if not config.SIMULATE_HARDWARE:
+        raise
 
 # LCD I2C
 try:
-    lcd = CharLCD(i2c_expander='PCF8574',
-                  address=0x27,
-                  port=1,
-                  cols=16,
-                  rows=2,
-                  dotsize=8)
+    lcd = CharLCD(
+        i2c_expander='PCF8574',
+        address=config.LCD_ADDRESS,
+        port=config.LCD_PORT,
+        cols=config.LCD_COLS,
+        rows=config.LCD_ROWS,
+        dotsize=8
+    )
     lcd.clear()
     lcd.write_string('Sistema Metro')
     lcd.cursor_pos = (1, 0)
     lcd.write_string('Iniciando...')
     time.sleep(1)
-    print("✓ LCD inicializada correctamente")
+    logger.info("✓ LCD inicializada correctamente")
 except Exception as e:
     lcd = None
-    print(f"✗ LCD NO DETECTADA: {e}")
+    logger.warning(f"⚠ LCD NO DETECTADA: {e}")
 
 # -------------------------
 # DECORADORES DE AUTENTICACIÓN
@@ -156,16 +166,16 @@ def admin_required(f):
 
 def mostrar_lcd(linea1, linea2=""):
     """Muestra texto en el LCD"""
-    print(f"LCD: {linea1} | {linea2}")
+    logger.debug(f"LCD: {linea1} | {linea2}")
     if lcd:
         try:
             lcd.clear()
-            lcd.write_string(linea1[:16])
+            lcd.write_string(linea1[:config.LCD_COLS])
             if linea2:
                 lcd.cursor_pos = (1, 0)
-                lcd.write_string(linea2[:16])
+                lcd.write_string(linea2[:config.LCD_COLS])
         except Exception as e:
-            print(f"Error LCD: {e}")
+            logger.error(f"Error LCD: {e}")
 
 def abrir_puertas():
     """Abre las puertas del torniquete"""
@@ -175,14 +185,22 @@ def abrir_puertas():
     led_verde.on()
     
     usuario = estado_sistema["usuario_actual"] or "Usuario"
-    mostrar_lcd("ACCESO OK", f"{usuario[:16]}")
+    mostrar_lcd("ACCESO OK", f"{usuario[:config.LCD_COLS]}")
     
     estado_sistema["estado_puerta"] = "ABIERTA"
     
     s1.angle = 90
     s2.angle = 90
     
-    print(f"✓ Puertas abiertas para {usuario}")
+    # Registrar estado de puerta en InfluxDB
+    if db_handler:
+        db_handler.write_door_status(
+            door_status="ABIERTA",
+            detecting_crossing=False,
+            lasers_status={'laser_a': not laserA.is_pressed, 'laser_b': not laserB.is_pressed}
+        )
+    
+    logger.info(f"✓ Puertas abiertas para {usuario}")
 
 def cerrar_puertas():
     """Cierra las puertas del torniquete"""
@@ -199,9 +217,17 @@ def cerrar_puertas():
     estado_sistema["boton_habilitado"] = False
     estado_sistema["usuario_actual"] = None
     
-    time.sleep(1)
+    # Registrar estado de puerta en InfluxDB
+    if db_handler:
+        db_handler.write_door_status(
+            door_status="CERRADA",
+            detecting_crossing=False,
+            lasers_status={'laser_a': not laserA.is_pressed, 'laser_b': not laserB.is_pressed}
+        )
+    
+    time.sleep(config.DOOR_CLOSE_DELAY)
     mostrar_lcd("Login en Web", "Para acceder")
-    print("✓ Puertas cerradas")
+    logger.info("✓ Puertas cerradas")
 
 def esperar_persona():
     """Espera a que la persona cruce completamente"""
@@ -222,7 +248,7 @@ def esperar_persona():
     time.sleep(0.5)
     
     estado_sistema["detectando_paso"] = False
-    print("✓ Persona ha cruzado completamente")
+    logger.info("✓ Persona ha cruzado completamente")
 
 def procesar_acceso():
     """Procesa un acceso cuando se pulsa el botón"""
@@ -231,7 +257,7 @@ def procesar_acceso():
     # Verificar si el botón está habilitado (usuario logueado)
     if not estado_sistema["boton_habilitado"]:
         mostrar_lcd("ACCESO DENEGADO", "Login primero")
-        print("✗ Intento de acceso sin login")
+        logger.warning("✗ Intento de acceso sin login")
         time.sleep(2)
         mostrar_lcd("Login en Web", "Para acceder")
         return
@@ -258,7 +284,7 @@ def procesar_acceso():
             door_id="canceladora_1"
         )
     
-    print(f"✓ Acceso #{estado_sistema['total_accesos']} - Usuario: {usuario}")
+    logger.info(f"✓ Acceso #{estado_sistema['total_accesos']} - Usuario: {usuario}")
     
     # Abrir puertas y esperar paso
     abrir_puertas()
@@ -267,7 +293,7 @@ def procesar_acceso():
 
 def monitor_boton():
     """Hilo que monitorea el botón continuamente"""
-    print("Iniciando monitoreo del botón...")
+    logger.info("Iniciando monitoreo del botón...")
     cerrar_puertas()
     
     while estado_sistema["sistema_activo"]:
@@ -281,8 +307,38 @@ def monitor_boton():
                 procesar_acceso()
                 
         except Exception as e:
-            print(f"Error en monitor de botón: {e}")
+            logger.error(f"Error en monitor de botón: {e}")
             time.sleep(1)
+
+# -------------------------
+# FUNCIONES DE SEGURIDAD
+# -------------------------
+
+def check_login_attempts(username):
+    """Verifica si el usuario está bloqueado por intentos fallidos"""
+    if username not in login_attempts:
+        return True
+    
+    attempts, last_attempt = login_attempts[username]
+    
+    # Si pasó el tiempo de bloqueo, resetear
+    if datetime.now() - last_attempt > timedelta(minutes=config.LOCKOUT_DURATION):
+        del login_attempts[username]
+        return True
+    
+    # Si excedió los intentos
+    if attempts >= config.MAX_LOGIN_ATTEMPTS:
+        return False
+    
+    return True
+
+def register_failed_attempt(username):
+    """Registra un intento fallido de login"""
+    if username not in login_attempts:
+        login_attempts[username] = [1, datetime.now()]
+    else:
+        attempts, _ = login_attempts[username]
+        login_attempts[username] = [attempts + 1, datetime.now()]
 
 # -------------------------
 # RUTAS DE AUTENTICACIÓN
@@ -312,21 +368,42 @@ def login():
     if not username or not password:
         return jsonify({"error": "Usuario y contraseña requeridos"}), 400
     
+    # Verificar si está bloqueado
+    if not check_login_attempts(username):
+        return jsonify({
+            "error": f"Cuenta bloqueada por {config.LOCKOUT_DURATION} minutos debido a múltiples intentos fallidos"
+        }), 403
+    
     # Verificar credenciales
     usuario = USUARIOS.get(username)
     if usuario and usuario['password'] == hash_password(password):
-        # Login exitoso
+        # Login exitoso - limpiar intentos fallidos
+        if username in login_attempts:
+            del login_attempts[username]
+        
         session['username'] = username
         session['nombre'] = usuario['nombre']
         session['rol'] = usuario['rol']
+        session.permanent = True
         
         # Habilitar el botón para este usuario
         estado_sistema["boton_habilitado"] = True
         estado_sistema["usuario_actual"] = usuario['nombre']
         
-        mostrar_lcd("Login exitoso", usuario['nombre'][:16])
+        mostrar_lcd("Login exitoso", usuario['nombre'][:config.LCD_COLS])
         time.sleep(1)
         mostrar_lcd("Pulsa boton", "Para acceder")
+        
+        # Registrar login en InfluxDB
+        if db_handler:
+            db_handler.write_login_event(
+                username=username,
+                user_name=usuario['nombre'],
+                role=usuario['rol'],
+                success=True
+            )
+        
+        logger.info(f"✓ Login exitoso: {username} ({usuario['nombre']})")
         
         return jsonify({
             "exito": True,
@@ -338,6 +415,19 @@ def login():
             }
         })
     
+    # Login fallido
+    register_failed_attempt(username)
+    
+    # Registrar intento fallido en InfluxDB
+    if db_handler:
+        db_handler.write_login_event(
+            username=username,
+            user_name="Unknown",
+            role="none",
+            success=False
+        )
+    
+    logger.warning(f"✗ Login fallido: {username}")
     return jsonify({"error": "Credenciales incorrectas"}), 401
 
 @app.route('/api/logout', methods=['POST'])
@@ -355,7 +445,7 @@ def logout():
     time.sleep(1)
     mostrar_lcd("Login en Web", "Para acceder")
     
-    print(f"✓ Usuario {username} cerró sesión")
+    logger.info(f"✓ Usuario {username} cerró sesión")
     
     return jsonify({"exito": True, "mensaje": "Sesión cerrada"})
 
@@ -405,46 +495,13 @@ def listar_usuarios():
     ]
     return jsonify(usuarios_list)
 
-@app.route('/agregar_usuario', methods=['POST'])
-@admin_required
-def agregar_usuario():
-    """API: Añade un nuevo usuario (solo admin)"""
-    data = request.json
-    username = data.get('username')
-    password = data.get('password')
-    nombre = data.get('nombre')
-    rol = data.get('rol', 'usuario')
-    
-    if username in USUARIOS:
-        return jsonify({"error": "El usuario ya existe"}), 400
-    
-    USUARIOS[username] = {
-        "password": hash_password(password),
-        "nombre": nombre,
-        "rol": rol
-    }
-    
-    return jsonify({"mensaje": f"Usuario {username} agregado", "exito": True})
-
-@app.route('/eliminar_usuario/<username>', methods=['DELETE'])
-@admin_required
-def eliminar_usuario(username):
-    """API: Elimina un usuario (solo admin)"""
-    if username == "admin":
-        return jsonify({"error": "No se puede eliminar al administrador"}), 400
-    
-    if username in USUARIOS:
-        del USUARIOS[username]
-        return jsonify({"mensaje": f"Usuario {username} eliminado", "exito": True})
-    
-    return jsonify({"error": "Usuario no encontrado"}), 404
-
 @app.route('/reiniciar_estadisticas', methods=['POST'])
 @admin_required
 def reiniciar_estadisticas():
     """API: Reinicia los contadores de estadísticas (solo admin)"""
     estado_sistema["total_accesos"] = 0
     estado_sistema["personas_dentro"] = 0
+    logger.info("✓ Estadísticas reiniciadas por administrador")
     return jsonify({"mensaje": "Estadísticas reiniciadas", "exito": True})
 
 @app.route('/api/accesos_recientes')
@@ -503,6 +560,9 @@ def simular_acceso_manual():
 # -------------------------
 
 if __name__ == '__main__':
+    # Mostrar configuración
+    config.print_config()
+    
     # Iniciar hilo de monitoreo del botón
     hilo_boton = threading.Thread(target=monitor_boton, daemon=True)
     hilo_boton.start()
@@ -510,17 +570,28 @@ if __name__ == '__main__':
     print("\n" + "="*50)
     print("🚇 SISTEMA CANCELADORA DE METRO INICIADO")
     print("="*50)
-    print(f"📱 Accede a la web desde: http://<IP_RASPBERRY>:8000")
-    print(f"🔘 Botón configurado en GPIO {PIN_BOTON}")
+    print(f"📱 Accede a la web desde: http://<IP_RASPBERRY>:{config.FLASK_PORT}")
+    print(f"🔘 Botón configurado en GPIO {config.PIN_BOTON}")
     print(f"👥 Usuarios registrados: {len(USUARIOS)}")
     print("\n⚠️  CREDENCIALES POR DEFECTO:")
-    print("   Admin: admin / admin123")
-    print("   Usuario1: usuario1 / pass123")
-    print("   Usuario2: usuario2 / pass123")
+    print(f"   Admin: {config.DEFAULT_ADMIN_USER} / {config.DEFAULT_ADMIN_PASS}")
+    print(f"   Usuario1: {config.DEFAULT_USER1_USER} / {config.DEFAULT_USER1_PASS}")
+    print(f"   Usuario2: {config.DEFAULT_USER2_USER} / {config.DEFAULT_USER2_PASS}")
     print("="*50 + "\n")
     
     try:
-        app.run(host='0.0.0.0', port=8000, debug=False)
+        # Configuración SSL si está habilitada
+        ssl_context = None
+        if config.ENABLE_HTTPS:
+            ssl_context = (config.SSL_CERT_PATH, config.SSL_KEY_PATH)
+            logger.info("✓ HTTPS habilitado")
+        
+        app.run(
+            host=config.FLASK_HOST,
+            port=config.FLASK_PORT,
+            debug=config.FLASK_DEBUG,
+            ssl_context=ssl_context
+        )
     except KeyboardInterrupt:
         print("\n\nCerrando sistema...")
         estado_sistema["sistema_activo"] = False
@@ -534,4 +605,7 @@ if __name__ == '__main__':
         if lcd:
             lcd.clear()
         
-        print("Sistema cerrado correctamente")
+        if db_handler:
+            db_handler.close()
+        
+        logger.info("Sistema cerrado correctamente")

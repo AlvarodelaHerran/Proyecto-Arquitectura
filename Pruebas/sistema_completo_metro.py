@@ -24,7 +24,7 @@ PIN_LED_VERDE = 25
 led_rojo = LED(PIN_LED_ROJO)
 led_verde = LED(PIN_LED_VERDE)
 
-boton = Button(PIN_BOTON, pull_up=True)   # Botón normal
+boton = Button(5, pull_up=True, active_state=False)   # Botón normal
 
 laserA = Button(PIN_LASER_A, pull_up=True)
 laserB = Button(PIN_LASER_B, pull_up=True)

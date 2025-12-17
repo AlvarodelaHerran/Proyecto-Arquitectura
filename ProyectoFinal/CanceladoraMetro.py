@@ -104,10 +104,18 @@ try:
     laserA = Button(config.PIN_LASER_A, pull_up=True)
     laserB = Button(config.PIN_LASER_B, pull_up=True)
 
+    # SERVOS CON POSICIÓN INICIAL PARA EVITAR MOVIMIENTO AL ARRANCAR
     s1 = AngularServo(config.PIN_SERVO_1, min_angle=0, max_angle=180,
-                      min_pulse_width=0.0005, max_pulse_width=0.0024)
+                      min_pulse_width=0.0005, max_pulse_width=0.0024,
+                      initial_angle=0)
     s2 = AngularServo(config.PIN_SERVO_2, min_angle=0, max_angle=180,
-                      min_pulse_width=0.0005, max_pulse_width=0.0024)
+                      min_pulse_width=0.0005, max_pulse_width=0.0024,
+                      initial_angle=180)
+    
+    # Pequeña pausa y confirmación de posición cerrada
+    time.sleep(0.5)
+    s1.angle = 0
+    s2.angle = 180
     
     logger.info("✓ Hardware GPIO inicializado correctamente")
 except Exception as e:
@@ -205,6 +213,10 @@ def abrir_puertas():
 def cerrar_puertas():
     """Cierra las puertas del torniquete"""
     global estado_sistema
+    
+    # Dar tiempo adicional antes de cerrar
+    mostrar_lcd("Gracias!", "Puede pasar")
+    time.sleep(2)  # 2 segundos extra de cortesía
     
     mostrar_lcd("Cerrando...", "")
     led_verde.off()

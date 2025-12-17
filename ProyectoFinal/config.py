@@ -44,7 +44,7 @@ class Config:
     # ============================================
     # LCD I2C
     # ============================================
-    LCD_ADDRESS = int(os.getenv('LCD_ADDRESS', '0x27'), 16)
+    LCD_ADDRESS = int(os.getenv('LCD_ADDRESS', '0x3f'), 16)
     LCD_PORT = int(os.getenv('LCD_PORT', 1))
     LCD_COLS = int(os.getenv('LCD_COLS', 16))
     LCD_ROWS = int(os.getenv('LCD_ROWS', 2))

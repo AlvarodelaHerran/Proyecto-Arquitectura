@@ -40,7 +40,7 @@ s2 = AngularServo(PIN_SERVO_2, min_angle=0, max_angle=180,
 
 try:
     lcd = CharLCD(i2c_expander='PCF8574',
-                  address=0x27,
+                  address=0x3f,
                   port=1,
                   cols=16,
                   rows=2,

@@ -100,7 +100,7 @@ try:
     led_verde = LED(config.PIN_LED_VERDE)
     boton = Button(config.PIN_BOTON, pull_up=None, active_state=True)
     laserA = Button(config.PIN_LASER_A, pull_up=True)
-    laserB = Button(config.PIN_LASER_B, pull_up=True)
+    laserB = Button(config.PIN_LASER_B, pull_up=True, bounce_time=0.2)
 
     # SERVOS CON POSICIÓN INICIAL PARA EVITAR MOVIMIENTO AL ARRANCAR
     s1 = AngularServo(config.PIN_SERVO_1, min_angle=0, max_angle=180,

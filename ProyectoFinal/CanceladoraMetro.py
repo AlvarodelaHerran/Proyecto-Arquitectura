@@ -214,10 +214,6 @@ def cerrar_puertas():
     """Cierra las puertas del torniquete"""
     global estado_sistema
     
-    # Dar tiempo adicional antes de cerrar
-    mostrar_lcd("Gracias!", "Puede pasar")
-    time.sleep(2)  # 2 segundos extra de cortesía
-    
     mostrar_lcd("Cerrando...", "")
     led_verde.off()
     led_rojo.on()
@@ -301,6 +297,11 @@ def procesar_acceso():
     # Abrir puertas y esperar paso
     abrir_puertas()
     esperar_persona()
+    
+    # Dar tiempo extra después de que la persona haya pasado
+    mostrar_lcd("Paso completo", "Cerrando...")
+    time.sleep(config.DOOR_CLOSE_DELAY)
+    
     cerrar_puertas()
 
 def monitor_boton():

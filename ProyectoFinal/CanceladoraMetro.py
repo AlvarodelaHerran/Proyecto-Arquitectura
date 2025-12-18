@@ -236,39 +236,42 @@ def cerrar_puertas():
     logger.info("✓ Puertas cerradas")
 
 def esperar_persona():
-    """Lógica manual: espera detección y luego liberación sin usar waits automáticos"""
     global estado_sistema
     estado_sistema["detectando_paso"] = True
     
-    timeout_entrada = 15  # 15 segundos para entrar
-    inicio_espera = time.time()
-    persona_detectada = False
-
-    logger.info(">>> PASO 1: Esperando que bloquees el Láser B...")
+    print("\n--- INICIO FASE DE ESPERA ---")
     
-    # Bucle 1: Esperar a que pongas la mano
-    while time.time() - inicio_espera < timeout_entrada:
-        if laserB.is_pressed:
-            persona_detectada = True
-            logger.info("✅ ¡MANO DETECTADA! Manténla ahí...")
+    # 1. ESPERAR A QUE DETECTE LA MANO
+    # Si la lógica está invertida, el programa pensará que la mano ya está ahí.
+    # Por eso vamos a imprimir el estado real aquí:
+    print(f"DEBUG: Estado actual del láser antes de empezar: {'BLOQUEADO' if laserB.is_pressed else 'LIBRE'}")
+    
+    timeout = time.time() + 15
+    detectado = False
+    
+    print("Esperando detección de mano (Paso 1)...")
+    while time.time() < timeout:
+        # Probamos con 'not laserB.is_pressed' por si tu sensor funciona al revés
+        if laserB.is_pressed: 
+            detectado = True
+            print("¡MANO DETECTADA!")
             break
         time.sleep(0.1)
 
-    if persona_detectada:
-        logger.info(">>> PASO 2: Esperando a que QUITES la mano para cerrar...")
-        # Bucle 2: Mientras la mano esté puesta, NO HACER NADA
+    if detectado:
+        print("Esperando a que QUITES la mano (Paso 2)...")
+        # No cerramos mientras la mano siga ahí
         while laserB.is_pressed:
-            # Aquí el código se queda "atrapado" mientras detecte algo
-            time.sleep(0.1)
+            print("El láser sigue bloqueado... no cierro...")
+            time.sleep(0.5) # Imprime cada medio segundo para no saturar
         
-        # Una vez que la quitas, esperamos un extra de seguridad
-        time.sleep(0.8)
-        logger.info("✅ Mano quitada. Paso completado.")
+        print("¡MANO QUITADA! Cerrando en 1 segundo...")
+        time.sleep(1)
     else:
-        logger.warning("❌ Nadie pasó. Timeout de 15 segundos alcanzado.")
+        print("TIMEOUT: No se detectó ninguna mano en 15 segundos.")
 
     estado_sistema["detectando_paso"] = False
-
+    
 def procesar_acceso():
     """Procesa un acceso cuando se pulsa el botón"""
     global estado_sistema

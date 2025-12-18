@@ -100,7 +100,7 @@ try:
     led_verde = LED(config.PIN_LED_VERDE)
     boton = Button(config.PIN_BOTON, pull_up=None, active_state=True)
     laserA = Button(config.PIN_LASER_A, pull_up=True)
-    laserB = Button(config.PIN_LASER_B, pull_up=True, bounce_time=0.2)
+    laserB = Button(config.PIN_LASER_B, pull_up=True, bounce_time=0.3)
 
     # SERVOS CON POSICIÓN INICIAL PARA EVITAR MOVIMIENTO AL ARRANCAR
     s1 = AngularServo(config.PIN_SERVO_1, min_angle=0, max_angle=180,
@@ -238,35 +238,37 @@ def cerrar_puertas():
 def esperar_persona():
     global estado_sistema
     estado_sistema["detectando_paso"] = True
-    mostrar_lcd("Puede pasar", "Esperando...")
-    logger.info("⏳ Esperando bloqueo de Láser B...")
-
-    # PASO 1: Esperar detección inicial
-    inicio_paso = laserB.wait_for_press(timeout=20) 
-
-    if inicio_paso:
-        logger.info("✅ Láser B DETECTADO")
-        mostrar_lcd("Cruzando...", "No se detenga")
+    mostrar_lcd("Puede pasar", "Detectando...")
+    
+    logger.info("⏳ Paso 1: Esperando a que bloquees el láser...")
+    # Esperamos hasta 20 segundos a que pongas la mano
+    detectado = laserB.wait_for_press(timeout=20)
+    
+    if detectado:
+        logger.info("✅ Mano detectada. Mantén la mano ahí para probar.")
+        mostrar_lcd("Cruzando...", "No se retire")
         
-        # PASO 2: Esperar a que quites la mano, pero asegurándonos
-        # Esperamos a que se libere...
-        laserB.wait_for_release(timeout=30)
-        
-        # ...y verificamos que sigue libre durante al menos 0.3 segundos
-        # Esto evita cierres accidentales por parpadeos del sensor
-        time.sleep(0.3)
+        # PASO 2: Bucle de seguridad para evitar cierres falsos
+        # No saldrá de aquí mientras el láser detecte algo
+        while laserB.is_pressed:
+            logger.debug("El láser sigue bloqueado... esperando liberación real.")
+            time.sleep(0.2) # Comprobamos cada 200ms
+            
+        # Cuando sale del while, es que parece que has quitado la mano
+        # Esperamos un instante y confirmamos que sigue libre
+        time.sleep(0.5)
         if not laserB.is_pressed:
-            logger.info("✅ Láser B LIBERADO - Paso real")
+            logger.info("✅ Confirmado: Láser libre. Persona ha pasado.")
             mostrar_lcd("Paso completo", "Gracias!")
         else:
-            # Si vuelve a estar presionado, es que el usuario sigue ahí
-            logger.warning("♻ Detección de parpadeo, re-esperando...")
-            return esperar_persona() # Re-intentar la espera
+            # Si vuelve a estar presionado, volvemos a esperar (recursividad)
+            logger.warning("♻ Falsa alarma detectada, el usuario sigue ahí.")
+            return esperar_persona()
             
     else:
-        logger.warning("⚠️ Tiempo agotado")
+        logger.warning("⚠️ Nadie pasó en 20 segundos.")
         mostrar_lcd("Tiempo agotado", "Cerrando...")
-    
+
     estado_sistema["detectando_paso"] = False
 
 def procesar_acceso():

@@ -257,7 +257,7 @@ def esperar_persona():
         
         # PASO 2: Esperar a que QUITES la mano (que el sensor deje de detectar)
         # Aquí no ponemos timeout porque la persona ya está en medio del torniquete
-        laserB.wait_for_release()
+        laserB.wait_for_release(timeout = 30)
         
         logger.info("✅ Láser B LIBERADO - Paso completado")
         mostrar_lcd("Paso completo", "Gracias!")

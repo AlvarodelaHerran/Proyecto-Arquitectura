@@ -240,40 +240,26 @@ def cerrar_puertas():
     logger.info("✓ Puertas cerradas")
 
 def esperar_persona():
-    """Espera a que la persona cruce completamente las dos barreras láser"""
+    """Espera a que la persona cruce completamente usando solo Laser B"""
     global estado_sistema
     
     estado_sistema["detectando_paso"] = True
     mostrar_lcd("Puede pasar", "")
     
-    logger.info("Esperando que la persona corte el Laser A...")
-    # Espera a que se corte el laser A (persona empieza a pasar)
-    while not laserA.is_pressed:  # Laser NO cortado
+    logger.info("Esperando a que alguien cruce (Laser B)...")
+    
+    # PASO 1: Esperar a que Laser B detecte algo (0 → 1)
+    while not laserB.is_pressed:  # Mientras NO detecta (0)
         time.sleep(0.05)
     
-    logger.info("✓ Laser A cortado - Persona detectada")
+    logger.info("✓ Laser B detectó persona - Cruzando...")
     mostrar_lcd("Cruzando...", "")
     
-    # Espera a que se corte el laser B (persona en medio de las dos barreras)
-    logger.info("Esperando que la persona corte el Laser B...")
-    while not laserB.is_pressed:  # Laser NO cortado
+    # PASO 2: Esperar a que Laser B deje de detectar (1 → 0)
+    while laserB.is_pressed:  # Mientras detecta (1)
         time.sleep(0.05)
     
-    logger.info("✓ Laser B cortado - Persona pasando")
-    
-    # Espera a que el laser A se libere (persona ya pasó la primera barrera)
-    logger.info("Esperando que el Laser A se libere...")
-    while laserA.is_pressed:  # Laser cortado
-        time.sleep(0.05)
-    
-    logger.info("✓ Laser A liberado")
-    
-    # Espera a que el laser B se libere (persona pasó completamente)
-    logger.info("Esperando que el Laser B se libere...")
-    while laserB.is_pressed:  # Laser cortado
-        time.sleep(0.05)
-    
-    logger.info("✓ Laser B liberado - Persona ha cruzado completamente")
+    logger.info("✓ Laser B liberado - Persona ha pasado completamente")
     mostrar_lcd("Paso completo", "Gracias!")
     time.sleep(1)
     

@@ -100,7 +100,7 @@ estado_sistema = {
 try:
     led_rojo = LED(config.PIN_LED_ROJO)
     led_verde = LED(config.PIN_LED_VERDE)
-    boton = Button(config.PIN_BOTON, pull_up=None, active_state=True)
+    boton = Button(config.PIN_BOTON, pull_up=True)
     laserA = Button(config.PIN_LASER_A, pull_up=True)
     laserB = Button(config.PIN_LASER_B, pull_up=True)
 

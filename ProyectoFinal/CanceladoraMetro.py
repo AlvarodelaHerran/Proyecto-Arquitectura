@@ -237,57 +237,36 @@ def cerrar_puertas():
 
 def esperar_persona():
     """
-    Espera a que la persona cruce completamente usando solo Laser B
-    
-    Lógica del láser B:
-    - laserB.is_pressed = False → Libre (no hay nada)
-    - laserB.is_pressed = True → Bloqueado (hay algo)
-    
-    Secuencia esperada:
-    1. Puertas abiertas, láser libre (False)
-    2. Persona entra → láser bloqueado (True)
-    3. Persona sale → láser libre (False)
+    Lógica sincronizada con lo que ves en la web:
+    - Mano puesta (Detección) -> Se activa
+    - Mano quitada (Paso completado) -> Se cierra
     """
     global estado_sistema
 
     estado_sistema["detectando_paso"] = True
-    mostrar_lcd("Puede pasar", "")
-    logger.info("⏳ Esperando a que alguien cruce (Laser B)...")
+    mostrar_lcd("Puede pasar", "Esperando...")
+    logger.info("⏳ Sistema listo. Esperando bloqueo de Láser B...")
 
-    # PASO 1: Esperar a que Laser B detecte algo (persona entra)
-    # Esperamos mientras el láser está LIBRE (is_pressed = False)
-    timeout = time.time() + 30  # Timeout de 30 segundos
-    
-    logger.debug("Paso 1: Esperando que láser B sea bloqueado...")
-    while not laserB.is_pressed:  # Mientras NO detecta (libre)
-        if time.time() > timeout:
-            logger.warning("⚠ Timeout esperando entrada - Cerrando puertas")
-            mostrar_lcd("Timeout", "Cerrando...")
-            time.sleep(1)
-            estado_sistema["detectando_paso"] = False
-            return
-        time.sleep(0.05)
+    # PASO 1: Esperar a que pongas la mano (que el sensor detecte algo)
+    # Usamos un timeout largo (20 seg) para que te dé tiempo a reaccionar
+    inicio_paso = laserB.wait_for_press(timeout=20) 
 
-    logger.info("✓ Laser B BLOQUEADO - Persona detectada cruzando")
-    mostrar_lcd("Cruzando...", "")
-
-    # PASO 2: Esperar a que Laser B deje de detectar (persona sale)
-    # Esperamos mientras el láser está BLOQUEADO (is_pressed = True)
-    timeout = time.time() + 30  # Nuevo timeout de 30 segundos
-
-    logger.debug("Paso 2: Esperando que láser B quede libre...")
-    while laserB.is_pressed:  # Mientras detecta (bloqueado)
-        if time.time() > timeout:
-            logger.warning("⚠ Timeout esperando salida - Forzando cierre")
-            mostrar_lcd("Timeout", "Forzando cierre")
-            time.sleep(1)
-            estado_sistema["detectando_paso"] = False
-            return
-        time.sleep(0.05)
-
-    logger.info("✓ Laser B LIBRE - Persona ha pasado completamente")
-    mostrar_lcd("Paso completo", "Gracias!")
-    time.sleep(1)
+    if inicio_paso:
+        logger.info("✅ Láser B DETECTADO - La persona está cruzando")
+        mostrar_lcd("Cruzando...", "No se detenga")
+        
+        # PASO 2: Esperar a que QUITES la mano (que el sensor deje de detectar)
+        # Aquí no ponemos timeout porque la persona ya está en medio del torniquete
+        laserB.wait_for_release()
+        
+        logger.info("✅ Láser B LIBERADO - Paso completado")
+        mostrar_lcd("Paso completo", "Gracias!")
+        time.sleep(0.5)
+    else:
+        # Esto es lo que te está pasando ahora: llega aquí sin detectar la mano
+        logger.warning("⚠️ Tiempo de espera agotado. Nadie cruzó.")
+        mostrar_lcd("Tiempo agotado", "Cerrando...")
+        time.sleep(1)
 
     estado_sistema["detectando_paso"] = False
 

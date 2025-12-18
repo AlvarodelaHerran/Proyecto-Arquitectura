@@ -236,38 +236,36 @@ def cerrar_puertas():
     logger.info("✓ Puertas cerradas")
 
 def esperar_persona():
+    """Lógica manual: espera detección y luego liberación sin usar waits automáticos"""
     global estado_sistema
     estado_sistema["detectando_paso"] = True
-    mostrar_lcd("Puede pasar", "Detectando...")
     
-    logger.info("⏳ Paso 1: Esperando a que bloquees el láser...")
-    # Esperamos hasta 20 segundos a que pongas la mano
-    detectado = laserB.wait_for_press(timeout=20)
+    timeout_entrada = 15  # 15 segundos para entrar
+    inicio_espera = time.time()
+    persona_detectada = False
+
+    logger.info(">>> PASO 1: Esperando que bloquees el Láser B...")
     
-    if detectado:
-        logger.info("✅ Mano detectada. Mantén la mano ahí para probar.")
-        mostrar_lcd("Cruzando...", "No se retire")
-        
-        # PASO 2: Bucle de seguridad para evitar cierres falsos
-        # No saldrá de aquí mientras el láser detecte algo
+    # Bucle 1: Esperar a que pongas la mano
+    while time.time() - inicio_espera < timeout_entrada:
+        if laserB.is_pressed:
+            persona_detectada = True
+            logger.info("✅ ¡MANO DETECTADA! Manténla ahí...")
+            break
+        time.sleep(0.1)
+
+    if persona_detectada:
+        logger.info(">>> PASO 2: Esperando a que QUITES la mano para cerrar...")
+        # Bucle 2: Mientras la mano esté puesta, NO HACER NADA
         while laserB.is_pressed:
-            logger.debug("El láser sigue bloqueado... esperando liberación real.")
-            time.sleep(0.2) # Comprobamos cada 200ms
-            
-        # Cuando sale del while, es que parece que has quitado la mano
-        # Esperamos un instante y confirmamos que sigue libre
-        time.sleep(0.5)
-        if not laserB.is_pressed:
-            logger.info("✅ Confirmado: Láser libre. Persona ha pasado.")
-            mostrar_lcd("Paso completo", "Gracias!")
-        else:
-            # Si vuelve a estar presionado, volvemos a esperar (recursividad)
-            logger.warning("♻ Falsa alarma detectada, el usuario sigue ahí.")
-            return esperar_persona()
-            
+            # Aquí el código se queda "atrapado" mientras detecte algo
+            time.sleep(0.1)
+        
+        # Una vez que la quitas, esperamos un extra de seguridad
+        time.sleep(0.8)
+        logger.info("✅ Mano quitada. Paso completado.")
     else:
-        logger.warning("⚠️ Nadie pasó en 20 segundos.")
-        mostrar_lcd("Tiempo agotado", "Cerrando...")
+        logger.warning("❌ Nadie pasó. Timeout de 15 segundos alcanzado.")
 
     estado_sistema["detectando_paso"] = False
 

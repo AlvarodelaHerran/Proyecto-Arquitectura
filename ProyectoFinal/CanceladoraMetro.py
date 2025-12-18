@@ -236,38 +236,37 @@ def cerrar_puertas():
     logger.info("✓ Puertas cerradas")
 
 def esperar_persona():
-    """
-    Lógica sincronizada con lo que ves en la web:
-    - Mano puesta (Detección) -> Se activa
-    - Mano quitada (Paso completado) -> Se cierra
-    """
     global estado_sistema
-
     estado_sistema["detectando_paso"] = True
     mostrar_lcd("Puede pasar", "Esperando...")
-    logger.info("⏳ Sistema listo. Esperando bloqueo de Láser B...")
+    logger.info("⏳ Esperando bloqueo de Láser B...")
 
-    # PASO 1: Esperar a que pongas la mano (que el sensor detecte algo)
-    # Usamos un timeout largo (20 seg) para que te dé tiempo a reaccionar
+    # PASO 1: Esperar detección inicial
     inicio_paso = laserB.wait_for_press(timeout=20) 
 
     if inicio_paso:
-        logger.info("✅ Láser B DETECTADO - La persona está cruzando")
+        logger.info("✅ Láser B DETECTADO")
         mostrar_lcd("Cruzando...", "No se detenga")
         
-        # PASO 2: Esperar a que QUITES la mano (que el sensor deje de detectar)
-        # Aquí no ponemos timeout porque la persona ya está en medio del torniquete
-        laserB.wait_for_release(timeout = 30)
+        # PASO 2: Esperar a que quites la mano, pero asegurándonos
+        # Esperamos a que se libere...
+        laserB.wait_for_release(timeout=30)
         
-        logger.info("✅ Láser B LIBERADO - Paso completado")
-        mostrar_lcd("Paso completo", "Gracias!")
-        time.sleep(0.5)
+        # ...y verificamos que sigue libre durante al menos 0.3 segundos
+        # Esto evita cierres accidentales por parpadeos del sensor
+        time.sleep(0.3)
+        if not laserB.is_pressed:
+            logger.info("✅ Láser B LIBERADO - Paso real")
+            mostrar_lcd("Paso completo", "Gracias!")
+        else:
+            # Si vuelve a estar presionado, es que el usuario sigue ahí
+            logger.warning("♻ Detección de parpadeo, re-esperando...")
+            return esperar_persona() # Re-intentar la espera
+            
     else:
-        # Esto es lo que te está pasando ahora: llega aquí sin detectar la mano
-        logger.warning("⚠️ Tiempo de espera agotado. Nadie cruzó.")
+        logger.warning("⚠️ Tiempo agotado")
         mostrar_lcd("Tiempo agotado", "Cerrando...")
-        time.sleep(1)
-
+    
     estado_sistema["detectando_paso"] = False
 
 def procesar_acceso():
